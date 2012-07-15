@@ -1,18 +1,60 @@
-#[link(name = "termbox",
-       vers = "0.1.0")];
+#[link(name = "termbox", vers = "0.1.0")];
 #[crate_type = "lib"];
 
 /*!
- * A wrapper for the termbox library.
+ *
+ * A lightweight curses alternative wrapping the termbox library.
+ *
+ * # SYNOPSIS
+ *
+ * A hello world for the terminal:
+ *
+ *     use std;
+ *     use termbox;
+ *
+ *     import tb = termbox;
+ *
+ *     fn main() {
+ *         tb::init();
+ *         tb::print(1, 1, tb::bold, tb::white, tb::black, "Hello, world!");
+ *         tb::present();
+ *         std::timer::sleep(std::uv_global_loop::get(), 1000);
+ *         tb::shutdown();
+ *     }
+ *
+ * # DESCRIPTION
+ *
+ * Output is double-buffered.
+ *
+ * TODO
+ *
+ * # EXAMPLES
+ *
+ * TODO
+ *
  */
 
 use std;
 
-import libc::{c_int,c_uint};
-import uint::range;
+// Exported functions
+export init, shutdown
+     , width, height
+     , clear, present
+     , set_cursor
+     , print, print_ch
+     , poll_event, peek_event
+     , event;
 
-// Foreign functions from termbox.
-#[doc(hidden)]
+// Exported types
+export color, style
+     , event;
+
+import libc::{c_int,c_uint};
+import ff = foreign;
+
+/*
+ * Foreign functions from termbox.
+ */
 #[link_name="termbox"]
 extern mod foreign {
     fn tb_init() -> c_int;
@@ -36,82 +78,107 @@ extern mod foreign {
 }
 
 
-/** 
- * Initialize an environment.
- */
 fn init() -> int { 
-    ret foreign::tb_init() as int; 
+    ret ff::tb_init() as int; 
 }
-/**
- * Shutdown an environment.
- */
+
 fn shutdown() { 
-    foreign::tb_shutdown(); 
+    ff::tb_shutdown(); 
 }
 
 fn width() -> uint { 
-    ret foreign::tb_width() as uint; 
+    ret ff::tb_width() as uint; 
 }
+
 fn height() -> uint { 
-    ret foreign::tb_height() as uint; 
+    ret ff::tb_height() as uint; 
 }
 
 /**
  * Clear buffer.
  */
 fn clear() { 
-    foreign::tb_clear(); 
+    ff::tb_clear(); 
 }
 
 /**
  * Write buffer to terminal.
  */
 fn present() { 
-    foreign::tb_present(); 
+    ff::tb_present(); 
 }
 
 fn set_cursor(cx: int, cy: int) { 
-    foreign::tb_set_cursor(cx as c_int, cy as c_int); 
+    ff::tb_set_cursor(cx as c_int, cy as c_int); 
 }
+
+// low-level wrapper
 fn change_cell(x: uint, y: uint, ch: u32, fg: u16, bg: u16) { 
-    foreign::tb_change_cell(x as c_uint, y as c_uint, ch, fg, bg); 
+    ff::tb_change_cell(x as c_uint, y as c_uint, ch, fg, bg); 
 }
 
+// Convert from enums to u16
+fn convert_color(c: color) -> u16 {
+    alt c {
+        black   { 0x00 }
+        red     { 0x01 }
+        green   { 0x02 }
+        yellow  { 0x03 }
+        blue    { 0x04 }
+        magenta { 0x05 }
+        cyan    { 0x06 }
+        white   { 0x07 }
+    }
+}
 
-type coloring = { fg: u16, bg: u16 };
-
-// Constants
-const BOLD:      u16 = 0x10;
-const UNDERLINE: u16 = 0x20;
-const BLACK:     u16 = 0x00;
-const RED:       u16 = 0x01;
-const GREEN:     u16 = 0x02;
-const YELLOW:    u16 = 0x03;
-const BLUE:      u16 = 0x04;
-const MAGENTA:   u16 = 0x05;
-const CYAN:      u16 = 0x06;
-const WHITE:     u16 = 0x07;
-
-// Convenience functions
+fn convert_style(sty: style) -> u16 {
+    alt sty {
+        normal         { 0x00 }
+        bold           { 0x10 }
+        underline      { 0x20 }
+        bold_underline { 0x30 }
+    }
+}
 
 /**
  * Print a string to the buffer.  Leftmost charater is at (x, y).
  */
-fn print(x: uint, y: uint, c: coloring, s: str) {
-    let {fg: fg, bg: bg} = c;
+fn print(x: uint, y: uint, sty: style, fg: color, bg: color, s: str) {
+    let fg: u16 = convert_color(fg) | convert_style(sty);
+    let bg: u16 = convert_color(bg);
     for s.each_chari |i, ch| {
-        change_cell(x + i, y, ch as u32, fg, bg);
+        ff::tb_change_cell((x + i) as c_uint, y as c_uint, ch as u32, fg, bg);
     }
 }
 
 /**
  * Print a charater to the buffer.
  */
-fn print_ch(x: uint, y: uint, c: coloring, ch: char) {
-    let {fg: fg, bg: bg} = c;
-    change_cell(x, y, ch as u32, fg, bg);
+fn print_ch(x: uint, y: uint, sty: style, fg: color, bg: color, ch: char) {
+    let fg: u16 = convert_color(fg) | convert_style(sty);
+    let bg: u16 = convert_color(bg);
+    ff::tb_change_cell(x as c_uint, y as c_uint, ch as u32, fg, bg);
 }
 
+enum color {
+    black,
+    red,
+    green,
+    yellow,
+    blue,
+    magenta,
+    cyan,
+    white
+}
+
+enum style {
+    normal,
+    bold,
+    underline,
+    bold_underline
+}
+
+// Convenience functions
 fn with_term(-f: fn~()) {
     init();
     let res = task::try(f);
@@ -126,7 +193,6 @@ fn with_term(-f: fn~()) {
 /*
  * The event type matches struct tb_event from termbox.h
  */
-#[doc(hidden)]
 type raw_event = {
     mut type: u8,
     mut mod: u8,
@@ -136,7 +202,6 @@ type raw_event = {
     mut h: i32
 };
 
-#[doc(hidden)]
 fn nil_raw_event() -> raw_event { 
     {mut type: 0, mut mod: 0, mut key: 0, mut ch: 0, mut w: 0, mut h: 0}
 }
@@ -147,15 +212,21 @@ enum event {
     no_event
 }
 
+/**
+ * Get an event if within timeout milliseconds, otherwise return no_event.
+ */
 fn peek_event(timeout: uint) -> event {
     let ev = nil_raw_event();
-    let rc = foreign::tb_peek_event(ptr::addr_of(ev), timeout as c_uint);
+    let rc = ff::tb_peek_event(ptr::addr_of(ev), timeout as c_uint);
     ret unpack_event(rc, &ev);
 }
 
+/**
+ * Blocking function to return next event.
+ */
 fn poll_event() -> event {
     let ev = nil_raw_event();
-    let rc = foreign::tb_poll_event(ptr::addr_of(ev));
+    let rc = ff::tb_poll_event(ptr::addr_of(ev));
     ret unpack_event(rc, &ev);
 }
 
@@ -167,7 +238,6 @@ fn poll_event() -> event {
  *   2 -> resize
  *   -1 -> error
  */
-#[doc(hidden)]
 fn unpack_event(ev_type: c_int, ev: &raw_event) -> event {
     alt ev_type {
         0 { no_event }
@@ -176,3 +246,4 @@ fn unpack_event(ev_type: c_int, ev: &raw_event) -> event {
         _ { fail; }
     }
 }
+

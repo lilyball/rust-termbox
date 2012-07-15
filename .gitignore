@@ -1,3 +1,7 @@
 nsf/*
+*.html
 demo
+hello
 libtermbox*.so
+*.swp
+

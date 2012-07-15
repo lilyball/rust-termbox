@@ -1,5 +1,6 @@
+all: build examples doc
 
-build: termbox.rs nsf
+build: nsf termbox.rs 
 	rustc --lib -L nsf termbox.rs
 
 nsf: nsf/libtermbox.a
@@ -12,8 +13,13 @@ nsf/libtermbox.a:
 	mv nsf/nsf-termbox*/libtermbox.a nsf/libtermbox.a
 	rm -rf nsf/nsf-termbox*
 
-demo: build
-	rustc -L . demo.rs
+examples: examples/hello examples/demo
+	
+examples/hello: build examples/hello.rs
+	(cd examples && rustc -L .. hello.rs)
+
+examples/demo: build examples/demo.rs
+	(cd examples && rustc -L .. demo.rs)
 
 doc:
 	rm -f doc/*.html
@@ -25,4 +31,4 @@ clean:
 	rm -f demo
 	rm -f doc/*.html
 
-.PHONY: clean doc nsf demo
+.PHONY: clean doc nsf examples
