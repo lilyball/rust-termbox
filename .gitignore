@@ -1,0 +1,4 @@
+*.html
+nsf/*
+demo
+libtermbox*.so
