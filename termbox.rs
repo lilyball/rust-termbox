@@ -9,10 +9,10 @@
  *
  * A hello world for the terminal:
  *
- *     use std;
- *     use termbox;
+ *     extern mod std;
+ *     extern mod termbox;
  *
- *     import tb = termbox;
+ *     use tb = termbox;
  *
  *     fn main() {
  *         tb::init();
@@ -34,23 +34,8 @@
  *
  */
 
-use std;
-
-// Exported functions
-export init, shutdown
-     , width, height
-     , clear, present
-     , set_cursor
-     , print, print_ch
-     , poll_event, peek_event
-     , event;
-
-// Exported types
-export color, style
-     , event;
-
-import libc::{c_int,c_uint};
-import ff = foreign;
+use libc::{c_int,c_uint};
+use ff = foreign;
 
 /*
  * Foreign functions from termbox.
@@ -78,37 +63,37 @@ extern mod foreign {
 }
 
 
-fn init() -> int { 
-    ret ff::tb_init() as int; 
+pub fn init() -> int { 
+    ff::tb_init() as int
 }
 
-fn shutdown() { 
+pub fn shutdown() { 
     ff::tb_shutdown(); 
 }
 
-fn width() -> uint { 
-    ret ff::tb_width() as uint; 
+pub fn width() -> uint {
+    ff::tb_width() as uint
 }
 
-fn height() -> uint { 
-    ret ff::tb_height() as uint; 
+pub fn height() -> uint {
+    ff::tb_height() as uint
 }
 
 /**
  * Clear buffer.
  */
-fn clear() { 
+pub fn clear() { 
     ff::tb_clear(); 
 }
 
 /**
  * Write buffer to terminal.
  */
-fn present() { 
+pub fn present() { 
     ff::tb_present(); 
 }
 
-fn set_cursor(cx: int, cy: int) { 
+pub fn set_cursor(cx: int, cy: int) { 
     ff::tb_set_cursor(cx as c_int, cy as c_int); 
 }
 
@@ -119,31 +104,31 @@ fn change_cell(x: uint, y: uint, ch: u32, fg: u16, bg: u16) {
 
 // Convert from enums to u16
 fn convert_color(c: color) -> u16 {
-    alt c {
-        black   { 0x00 }
-        red     { 0x01 }
-        green   { 0x02 }
-        yellow  { 0x03 }
-        blue    { 0x04 }
-        magenta { 0x05 }
-        cyan    { 0x06 }
-        white   { 0x07 }
+    match c {
+        black   => 0x00,
+        red     => 0x01,
+        green   => 0x02,
+        yellow  => 0x03,
+        blue    => 0x04,
+        magenta => 0x05,
+        cyan    => 0x06,
+        white   => 0x07
     }
 }
 
 fn convert_style(sty: style) -> u16 {
-    alt sty {
-        normal         { 0x00 }
-        bold           { 0x10 }
-        underline      { 0x20 }
-        bold_underline { 0x30 }
+    match sty {
+        normal         => 0x00,
+        bold           => 0x10,
+        underline      => 0x20,
+        bold_underline => 0x30
     }
 }
 
 /**
  * Print a string to the buffer.  Leftmost charater is at (x, y).
  */
-fn print(x: uint, y: uint, sty: style, fg: color, bg: color, s: str) {
+pub fn print(x: uint, y: uint, sty: style, fg: color, bg: color, s: &str) {
     let fg: u16 = convert_color(fg) | convert_style(sty);
     let bg: u16 = convert_color(bg);
     for s.each_chari |i, ch| {
@@ -154,7 +139,7 @@ fn print(x: uint, y: uint, sty: style, fg: color, bg: color, s: str) {
 /**
  * Print a charater to the buffer.
  */
-fn print_ch(x: uint, y: uint, sty: style, fg: color, bg: color, ch: char) {
+pub fn print_ch(x: uint, y: uint, sty: style, fg: color, bg: color, ch: char) {
     let fg: u16 = convert_color(fg) | convert_style(sty);
     let bg: u16 = convert_color(bg);
     ff::tb_change_cell(x as c_uint, y as c_uint, ch as u32, fg, bg);
@@ -179,12 +164,12 @@ enum style {
 }
 
 // Convenience functions
-fn with_term(-f: fn~()) {
+fn with_term(f: fn~()) {
     init();
     let res = task::try(f);
     shutdown();
-    if result::is_err(res) {
-        #error("with_term: An error occured.");
+    if result::is_err(&res) {
+        error!("with_term: An error occured.");
     }
 }
 
@@ -193,17 +178,17 @@ fn with_term(-f: fn~()) {
 /*
  * The event type matches struct tb_event from termbox.h
  */
-type raw_event = {
-    mut type: u8,
-    mut mod: u8,
+struct raw_event {
+    mut e_type: u8,
+    mut e_mod: u8,
     mut key: u16,
     mut ch: u32,
     mut w: i32,
     mut h: i32
-};
+}
 
 fn nil_raw_event() -> raw_event { 
-    {mut type: 0, mut mod: 0, mut key: 0, mut ch: 0, mut w: 0, mut h: 0}
+    raw_event{mut e_type: 0, mut e_mod: 0, mut key: 0, mut ch: 0, mut w: 0, mut h: 0}
 }
 
 enum event {
@@ -215,19 +200,19 @@ enum event {
 /**
  * Get an event if within timeout milliseconds, otherwise return no_event.
  */
-fn peek_event(timeout: uint) -> event {
+pub fn peek_event(timeout: uint) -> event {
     let ev = nil_raw_event();
-    let rc = ff::tb_peek_event(ptr::addr_of(ev), timeout as c_uint);
-    ret unpack_event(rc, &ev);
+    let rc = ff::tb_peek_event(ptr::addr_of(&ev), timeout as c_uint);
+    unpack_event(rc, &ev)
 }
 
 /**
  * Blocking function to return next event.
  */
-fn poll_event() -> event {
+pub fn poll_event() -> event {
     let ev = nil_raw_event();
-    let rc = ff::tb_poll_event(ptr::addr_of(ev));
-    ret unpack_event(rc, &ev);
+    let rc = ff::tb_poll_event(ptr::addr_of(&ev));
+    unpack_event(rc, &ev)
 }
 
 /* helper fn
@@ -239,11 +224,11 @@ fn poll_event() -> event {
  *   -1 -> error
  */
 fn unpack_event(ev_type: c_int, ev: &raw_event) -> event {
-    alt ev_type {
-        0 { no_event }
-        1 { key_event({md: ev.mod, key: ev.key, ch: ev.ch}) }
-        2 { resize_event({w: ev.w, h: ev.h}) }
-        _ { fail; }
+    match ev_type {
+        0 => no_event,
+        1 => key_event({md: ev.e_mod, key: ev.key, ch: ev.ch}),
+        2 => resize_event({w: ev.w, h: ev.h}),
+        _ => fail
     }
 }
 

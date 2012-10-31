@@ -1,7 +1,7 @@
-use std;
-use termbox;
+extern mod std;
+extern mod termbox;
 
-import tb = termbox;
+use tb = termbox;
 
 fn main() {
     tb::init();
