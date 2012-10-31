@@ -28,7 +28,11 @@ doc:
 clean:
 	rm -rf nsf
 	rm -f libtermbox*.so
-	rm -f demo
+	rm -f libtermbox*.dylib
+	rm -rf *.dSYM
+	rm -f examples/demo
+	rm -f examples/hello
+	rm -rf examples/*.dSYM
 	rm -f doc/*.html
 
 .PHONY: clean doc nsf examples
